@@ -49,9 +49,8 @@ def _select_audio_video_stream(streams: StreamQuery) -> tuple[Stream, Stream] | 
 
     return video_stream, audio_stream
 
-def _handle_stream_download(
-    video_stream: Stream, audio_stream: Stream
-) -> str:
+
+def _handle_stream_download(video_stream: Stream, audio_stream: Stream) -> str:
     conversion_id = uuid.uuid4().hex
     temp_file_path = TEMPORARY_FILE_PATH.format(uuid=conversion_id)
 
@@ -68,9 +67,9 @@ def _merge_streams(stream_path: str) -> str:
         "-y",  # Overwrite output file without asking
         "-hide_banner",  # Hide FFmpeg banner
         "-loglevel", "error",  # Suppress logs except errors
-        "-threads", "8",  # Use 8 threads for encoding
         "-i", f"{stream_path}/video.mp4",  # Input video file
         "-i", f"{stream_path}/audio.mp4",  # Input audio file
+        "-c", "copy",  # Copy both video and audio codecs (no re-encoding)
         "-map", "0:v:0",  # Select video stream from first input
         "-map", "1:a:0",  # Select audio stream from second input
         output_path  # Output file
@@ -96,7 +95,7 @@ def download_video(video_url: str) -> None:
     if not selected_streams:
         console.log(f":no_entry: No suitable stream found for {video.title!r}.")
         return
-    
+
     video_stream, audio_stream = selected_streams
 
     channel = Channel(video.channel_url)
@@ -122,8 +121,6 @@ def download_video(video_url: str) -> None:
     console.log(
         f":white_check_mark: Successfully downloaded {video.title!r} by {channel_name!r}.",
     )
-
-
 
 
 def schedule_download(video_url: str) -> None:
