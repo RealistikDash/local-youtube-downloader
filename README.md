@@ -10,3 +10,5 @@ I wanted to watch YouTube videos on a 14 hour flight. There is no tool available
 - A video download will be scheduled. You will be able to schedule more videos in this time.
 - The video will be downloaded in the highest quality available and located in `./<channel_name>/<video_title>`
 - Et voila!
+
+Note that to achieve the best quality, there is a significant amount of encoding to combine audio and video.
