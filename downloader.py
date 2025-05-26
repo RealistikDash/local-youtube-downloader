@@ -20,7 +20,9 @@ _thread_pool: list[threading.Thread] = []
 def ensure_channel_directory(channel_name: str) -> None:
     if os.path.exists(CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name)):
         return
-    os.makedirs(CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name), exist_ok=True)
+    os.makedirs(
+        CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name), exist_ok=True
+    )
 
 
 def download_video(video_url: str) -> None:
@@ -32,7 +34,6 @@ def download_video(video_url: str) -> None:
         console.log(f":no_entry: Video {video_url!r} is not available: {e!r}")
         return
 
-
     video_title = video.title
 
     def video_completed_cb(*_) -> None:
@@ -43,7 +44,7 @@ def download_video(video_url: str) -> None:
     if not stream:
         console.log(f":no_entry: No suitable stream found for {video_title!r}.")
         return
-    
+
     channel = Channel(video.channel_url)
     channel_name = channel.channel_name
     ensure_channel_directory(channel_name)
@@ -54,7 +55,9 @@ def download_video(video_url: str) -> None:
 
 
 def schedule_download(video_url: str) -> None:
-    schedule_thread = threading.Thread(target=download_video, args=(video_url,), daemon=False)
+    schedule_thread = threading.Thread(
+        target=download_video, args=(video_url,), daemon=False
+    )
     schedule_thread.start()
     _thread_pool.append(schedule_thread)
 
@@ -72,7 +75,8 @@ if __name__ == "__main__":
     )
     current_directory = os.getcwd()
     console.print(
-        f"All videos will be downloaded in their highest quality and saved in the current directory ([underline]{current_directory}[/underline]).",
+        "All videos will be downloaded in their highest quality and saved "
+        f"in the current directory ([underline]{current_directory}[/underline]).",
         style="dim",
         highlight=False,
     )
@@ -89,8 +93,8 @@ if __name__ == "__main__":
             if not video_url:
                 continue
             if video_url.lower() in ("exit", "quit", "q"):
-                raise KeyboardInterrupt # LOL
-            
+                raise KeyboardInterrupt  # LOL
+
             schedule_download(video_url)
     except KeyboardInterrupt:
         if _thread_pool:
@@ -101,7 +105,6 @@ if __name__ == "__main__":
             )
             for thread in _thread_pool:
                 thread.join()
-        
+
         console.log("Exiting the downloader. Goodbye!", style="bold red")
         exit(0)
-    
