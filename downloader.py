@@ -14,6 +14,8 @@ CHANNEL_DIRECTORY_TEMPLATE = "./{channel_name}/"
 console = Console()
 install(console=console)
 
+_thread_pool: list[threading.Thread] = []
+
 
 def ensure_channel_directory(channel_name: str) -> None:
     if os.path.exists(CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name)):
@@ -46,13 +48,60 @@ def download_video(video_url: str) -> None:
     channel_name = channel.channel_name
     ensure_channel_directory(channel_name)
 
+    console.log(f":arrow_forward: Downloading {video_title!r} from {channel_name!r}...")
+
     stream.download(CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name))
 
 
 def schedule_download(video_url: str) -> None:
     schedule_thread = threading.Thread(target=download_video, args=(video_url,), daemon=False)
     schedule_thread.start()
+    _thread_pool.append(schedule_thread)
 
 
 if __name__ == "__main__":
-    download_video("https://www.youtube.com/watch?v=iNITnXV65cM")
+    console.print(
+        "Welcome to the YouTube Downloader!",
+        style="bold underline blue",
+        highlight=False,
+    )
+    console.print(
+        "This tool allows you to quickly schedule downloads of YouTube videos.",
+        style="dim",
+        highlight=False,
+    )
+    current_directory = os.getcwd()
+    console.print(
+        f"All videos will be downloaded in their highest quality and saved in the current directory ([underline]{current_directory}[/underline]).",
+        style="dim",
+        highlight=False,
+    )
+    console.print(
+        "To get started, just paste in the URL of the YouTube video you want to download.",
+        style="dim",
+        highlight=False,
+    )
+    console.print("\n")
+
+    try:
+        while True:
+            video_url = console.input("YouTube > ").strip()
+            if not video_url:
+                continue
+            if video_url.lower() in ("exit", "quit", "q"):
+                raise KeyboardInterrupt # LOL
+            
+            schedule_download(video_url)
+    except KeyboardInterrupt:
+        if _thread_pool:
+            console.log(
+                "Waiting for all downloads to complete before exiting...",
+                style="dim",
+                highlight=False,
+            )
+            for thread in _thread_pool:
+                thread.join()
+        
+        console.log("Exiting the downloader. Goodbye!", style="bold red")
+        exit(0)
+    
