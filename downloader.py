@@ -18,18 +18,39 @@ DOWNLOAD_PATH_TEMPLATE = "./{channel_name}/{video_title}.mp4"
 CHANNEL_DIRECTORY_TEMPLATE = "./{channel_name}/"
 TEMPORARY_FILE_PATH = "./tmp_{uuid}/"
 
+PATH_EXCLUDED_CHARACTERS = {"\\", "/"}
+
 console = Console()
 install(console=console)
 
 _thread_pool: list[threading.Thread] = []
 
 
-def ensure_channel_directory(channel_name: str) -> None:
-    if os.path.exists(CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name)):
-        return
-    os.makedirs(
-        CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name), exist_ok=True
+def _make_path_safe(file_name: str) -> str:
+    return str(filter(lambda c: c not in PATH_EXCLUDED_CHARACTERS, file_name))
+
+
+def _format_channel_directory(channel_name: str) -> str:
+    return CHANNEL_DIRECTORY_TEMPLATE.format(channel_name=channel_name)
+
+
+def _format_download_path(channel_name: str, video_title: str) -> str:
+    video_title = _make_path_safe(video_title)
+
+    return DOWNLOAD_PATH_TEMPLATE.format(
+        channel_name=channel_name, video_title=video_title
     )
+
+
+def _format_temporary_file_path(uuid: str) -> str:
+    return TEMPORARY_FILE_PATH.format(uuid=uuid)
+
+
+def ensure_channel_directory(channel_name: str) -> None:
+    channel_directory = _format_channel_directory(channel_name)
+    if os.path.exists(channel_directory):
+        return
+    os.makedirs(channel_directory, exist_ok=True)
 
 
 def _select_audio_video_stream(streams: StreamQuery) -> tuple[Stream, Stream] | None:
@@ -52,7 +73,7 @@ def _select_audio_video_stream(streams: StreamQuery) -> tuple[Stream, Stream] | 
 
 def _handle_stream_download(video_stream: Stream, audio_stream: Stream) -> str:
     conversion_id = uuid.uuid4().hex
-    temp_file_path = TEMPORARY_FILE_PATH.format(uuid=conversion_id)
+    temp_file_path = _format_temporary_file_path(conversion_id)
 
     video_stream.download(temp_file_path, skip_existing=True, filename="video.mp4")
     audio_stream.download(temp_file_path, skip_existing=True, filename="audio.mp4")
@@ -66,13 +87,19 @@ def _merge_streams(stream_path: str) -> str:
         "ffmpeg",
         "-y",  # Overwrite output file without asking
         "-hide_banner",  # Hide FFmpeg banner
-        "-loglevel", "error",  # Suppress logs except errors
-        "-i", f"{stream_path}/video.mp4",  # Input video file
-        "-i", f"{stream_path}/audio.mp4",  # Input audio file
-        "-c", "copy",  # Copy both video and audio codecs (no re-encoding)
-        "-map", "0:v:0",  # Select video stream from first input
-        "-map", "1:a:0",  # Select audio stream from second input
-        output_path  # Output file
+        "-loglevel",
+        "error",  # Suppress logs except errors
+        "-i",
+        f"{stream_path}/video.mp4",  # Input video file
+        "-i",
+        f"{stream_path}/audio.mp4",  # Input audio file
+        "-c",
+        "copy",  # Copy both video and audio codecs (no re-encoding)
+        "-map",
+        "0:v:0",  # Select video stream from first input
+        "-map",
+        "1:a:0",  # Select audio stream from second input
+        output_path,  # Output file
     ]
     subprocess.run(cmd, check=True)
     return output_path
@@ -105,11 +132,8 @@ def download_video(video_url: str) -> None:
 
     download_path = _handle_stream_download(video_stream, audio_stream)
 
-    console.log(
-        f":hourglass_flowing_sand: Merging audio and video streams for {video.title!r}..."
-    )
     output_file = _merge_streams(download_path)
-    final_path = DOWNLOAD_PATH_TEMPLATE.format(
+    final_path = _format_download_path(
         channel_name=channel_name, video_title=video.title
     )
 
@@ -131,21 +155,23 @@ def schedule_download(video_url: str) -> None:
     _thread_pool.append(schedule_thread)
 
 
-if __name__ == "__main__":
+def _output_header() -> None:
     console.print(
         "Welcome to the YouTube Downloader!",
         style="bold underline blue",
         highlight=False,
     )
+
+
+def _output_tutorial(download_path: str) -> None:
     console.print(
         "This tool allows you to quickly schedule downloads of YouTube videos.",
         style="dim",
         highlight=False,
     )
-    current_directory = os.getcwd()
     console.print(
         "All videos will be downloaded in their highest quality and saved "
-        f"in the current directory ([underline]{current_directory}[/underline]).",
+        f"in the current directory ([underline]{download_path}[/underline]).",
         style="dim",
         highlight=False,
     )
@@ -155,6 +181,42 @@ if __name__ == "__main__":
         highlight=False,
     )
     console.print("\n")
+
+
+def _output_exit_message() -> None:
+    console.log("Exiting the downloader. Goodbye!", style="bold red")
+
+
+def _output_waiting_threads_message() -> None:
+    console.log(
+        "Waiting for all downloads to complete before exiting...",
+        style="dim",
+        highlight=False,
+    )
+
+
+def _output_ffmpeg_not_found() -> None:
+    console.log(
+        ":no_entry: FFmpeg is not installed or not found in your PATH.",
+        style="bold red",
+    )
+
+    console.log(
+        ":information_source: FFMPEG is required for merging audio and video streams. "
+        "You can download it from https://ffmpeg.org/download.html",
+        style="dim",
+    )
+
+
+if __name__ == "__main__":
+    current_directory = os.getcwd()
+
+    _output_header()
+    _output_tutorial(current_directory)
+
+    if not shutil.which("ffmpeg"):
+        _output_ffmpeg_not_found()
+        exit(1)
 
     try:
         while True:
@@ -167,13 +229,9 @@ if __name__ == "__main__":
             schedule_download(video_url)
     except KeyboardInterrupt:
         if _thread_pool:
-            console.log(
-                "Waiting for all downloads to complete before exiting...",
-                style="dim",
-                highlight=False,
-            )
+            _output_waiting_threads_message()
             for thread in _thread_pool:
                 thread.join()
 
-        console.log("Exiting the downloader. Goodbye!", style="bold red")
+        _output_exit_message()
         exit(0)
